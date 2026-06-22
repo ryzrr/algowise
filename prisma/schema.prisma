@@ -1,0 +1,429 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// --- Auth.js required models ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts        Account[]
+  sessions        Session[]
+  problemStatuses UserProblemStatus[]
+  posts           Post[]
+  comments        Comment[]
+  postLikes       PostLike[]
+  achievements    UserAchievement[]
+  interviewTargets InterviewTarget[]
+  dailyChallengeCompletions DailyChallengeCompletion[]
+  roomsAsChallenger Room[] @relation("RoomChallenger")
+  roomsAsOpponent   Room[] @relation("RoomOpponent")
+  storyModeSessions StoryModeSession[]
+  blindAttempts     BlindAttempt[]
+  lists             List[]
+  problemDiscussions ProblemDiscussion[]
+
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Domain models ---
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+  UNKNOWN
+}
+
+enum ProblemStatusValue {
+  TODO
+  SOLVED
+}
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  problemCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  problems CompanyProblem[]
+  interviewTargets InterviewTarget[]
+  blindGuessed BlindAttempt[] @relation("BlindGuessed")
+  blindActual  BlindAttempt[] @relation("BlindActual")
+}
+
+model Problem {
+  id             String     @id @default(cuid())
+  slug           String     @unique
+  title          String
+  link           String
+  difficulty     Difficulty @default(UNKNOWN)
+  acceptanceRate Float?
+  isPaidOnly     Boolean    @default(false)
+
+  companies CompanyProblem[]
+  statuses  UserProblemStatus[]
+  topics    ProblemTopic[]
+  dailyChallenges DailyChallenge[]
+  rooms           Room[]
+  blindAttempts   BlindAttempt[]
+  lists           ListProblem[]
+  discussions     ProblemDiscussion[]
+}
+
+model CompanyProblem {
+  companyId String
+  problemId String
+  frequency Int    @default(1)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, problemId])
+  @@index([companyId])
+  @@index([problemId])
+}
+
+model UserProblemStatus {
+  id        String             @id @default(cuid())
+  userId    String
+  problemId String
+  status    ProblemStatusValue @default(TODO)
+  starred   Boolean            @default(false)
+  note      String?
+  solvedAt  DateTime?
+  updatedAt DateTime           @updatedAt
+
+  // Spaced repetition (Ebbinghaus forgetting curve)
+  nextReviewAt   DateTime?
+  reviewStage    Int       @default(0)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@index([userId])
+  @@index([userId, nextReviewAt])
+}
+
+model Topic {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String @unique
+
+  problems ProblemTopic[]
+}
+
+// ----------------------------------------------------------------------
+// COMMUNITY FORUM MODELS
+// ----------------------------------------------------------------------
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   // Markdown content
+  slug      String   @unique
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  comments  Comment[]
+  likes     PostLike[]
+  tags      PostTag[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model PostLike {
+  userId String
+  postId String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@id([userId, postId])
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+  
+  posts PostTag[]
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([postId, tagId])
+}
+
+model ProblemTopic {
+  problemId String
+  topicId   String
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([problemId, topicId])
+  @@index([problemId])
+  @@index([topicId])
+}
+
+// Achievement system
+model Achievement {
+  id          String   @id // e.g. "first_solve", "streak_7"
+  name        String
+  description String
+  emoji       String
+  createdAt   DateTime @default(now())
+
+  users UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  awardedAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@id([userId, achievementId])
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------
+// DAILY CHALLENGE
+// ----------------------------------------------------------------------
+
+model DailyChallenge {
+  id        String   @id @default(cuid())
+  date      DateTime @unique // normalized to UTC midnight
+  problemId String
+  createdAt DateTime @default(now())
+
+  problem     Problem                    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  completions DailyChallengeCompletion[]
+}
+
+model DailyChallengeCompletion {
+  dailyChallengeId String
+  userId           String
+  completedAt      DateTime @default(now())
+
+  dailyChallenge DailyChallenge @relation(fields: [dailyChallengeId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([dailyChallengeId, userId])
+}
+
+// ----------------------------------------------------------------------
+// INTERVIEW COUNTDOWN
+// ----------------------------------------------------------------------
+
+model InterviewTarget {
+  id         String   @id @default(cuid())
+  userId     String
+  companyId  String
+  targetDate DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+}
+
+// ----------------------------------------------------------------------
+// WAR ROOM (1v1 duel)
+// ----------------------------------------------------------------------
+
+enum RoomStatus {
+  WAITING
+  ACTIVE
+  FINISHED
+}
+
+model Room {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  status    RoomStatus @default(WAITING)
+  problemId String
+
+  challengerId       String
+  opponentId         String?
+  startTime          DateTime?
+  challengerSolvedAt DateTime?
+  opponentSolvedAt   DateTime?
+  winnerId           String?
+  createdAt          DateTime  @default(now())
+
+  problem    Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  challenger User    @relation("RoomChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  opponent   User?   @relation("RoomOpponent", fields: [opponentId], references: [id], onDelete: Cascade)
+}
+
+// ----------------------------------------------------------------------
+// STORY MODE
+// ----------------------------------------------------------------------
+
+enum StoryStatus {
+  IN_PROGRESS
+  PASSED
+  FAILED
+}
+
+model StoryModeSession {
+  id          String      @id @default(cuid())
+  userId      String
+  companySlug String
+  stage       Int         @default(1)
+  status      StoryStatus @default(IN_PROGRESS)
+  stageData   String // JSON: per-stage problem ids, time limits, pass/fail
+  weakTopic   String?
+  startedAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------
+// BLIND MODE
+// ----------------------------------------------------------------------
+
+model BlindAttempt {
+  id               String   @id @default(cuid())
+  userId           String
+  problemId        String
+  guessedCompanyId String?
+  actualCompanyId  String?
+  correct          Boolean
+  createdAt        DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem        Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  guessedCompany Company? @relation("BlindGuessed", fields: [guessedCompanyId], references: [id])
+  actualCompany  Company? @relation("BlindActual", fields: [actualCompanyId], references: [id])
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------
+// BOOKMARKS / CUSTOM LISTS
+// ----------------------------------------------------------------------
+
+model List {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problems ListProblem[]
+
+  @@index([userId])
+}
+
+model ListProblem {
+  listId    String
+  problemId String
+  addedAt   DateTime @default(now())
+
+  list    List    @relation(fields: [listId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@id([listId, problemId])
+}
+
+// ----------------------------------------------------------------------
+// PROBLEM DISCUSSION THREADS
+// ----------------------------------------------------------------------
+
+model ProblemDiscussion {
+  id        String   @id @default(cuid())
+  problemId String
+  authorId  String
+  content   String
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  problem Problem             @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  author  User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  ProblemDiscussion?  @relation("DiscussionReplies", fields: [parentId], references: [id])
+  replies ProblemDiscussion[] @relation("DiscussionReplies")
+
+  @@index([problemId])
+}
