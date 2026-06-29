@@ -10,6 +10,11 @@ export async function getPublicProfile(username: string) {
       username: true,
       image: true,
       createdAt: true,
+      isMentor: true,
+      mentorTitle: true,
+      mentorCompany: true,
+      mentorBio: true,
+      mentorYears: true,
     },
   });
 

@@ -36,6 +36,18 @@ model User {
   lists             List[]
   problemDiscussions ProblemDiscussion[]
 
+  // Mentor connect (self-declared)
+  isMentor      Boolean @default(false)
+  mentorTitle   String?
+  mentorCompany String?
+  mentorBio     String?
+  mentorYears   Int?
+
+  eventsHosted             Event[]
+  eventRsvps               EventRsvp[]
+  feedbackRequestsSent     FeedbackRequest[] @relation("FeedbackRequester")
+  feedbackRequestsReceived FeedbackRequest[] @relation("FeedbackMentor")
+
   createdAt DateTime @default(now())
 }
 
@@ -168,33 +180,53 @@ model Topic {
 // COMMUNITY FORUM MODELS
 // ----------------------------------------------------------------------
 
+enum PostType {
+  BLOG
+  QUESTION
+}
+
 model Post {
   id        String   @id @default(cuid())
+  type      PostType @default(BLOG)
   title     String
   content   String   // Markdown content
   slug      String   @unique
   views     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
-  comments  Comment[]
+
+  acceptedCommentId String?  @unique
+  acceptedComment   Comment? @relation("AcceptedAnswer", fields: [acceptedCommentId], references: [id])
+
+  comments  Comment[]  @relation("PostComments")
   likes     PostLike[]
   tags      PostTag[]
+
+  @@index([type])
 }
 
 model Comment {
   id        String   @id @default(cuid())
   content   String
   createdAt DateTime @default(now())
-  
+
   postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
+  post      Post     @relation("PostComments", fields: [postId], references: [id], onDelete: Cascade)
+
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+
+  acceptedFor Post? @relation("AcceptedAnswer")
+
+  @@index([postId])
+  @@index([parentId])
 }
 
 model PostLike {
@@ -406,6 +438,79 @@ model ListProblem {
   problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@id([listId, problemId])
+}
+
+// ----------------------------------------------------------------------
+// PREP EVENTS
+// ----------------------------------------------------------------------
+
+enum EventCategory {
+  PREP
+  SKILLS
+  INTERVIEW_PREP
+}
+
+model Event {
+  id           String        @id @default(cuid())
+  title        String
+  description  String // Markdown content
+  category     EventCategory @default(PREP)
+  startAt      DateTime
+  externalLink String?
+  capacity     Int? // null = unlimited
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  hostId String
+  host   User   @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  rsvps EventRsvp[]
+
+  @@index([startAt])
+  @@index([hostId])
+}
+
+model EventRsvp {
+  eventId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([eventId])
+}
+
+// ----------------------------------------------------------------------
+// MENTOR CONNECT
+// ----------------------------------------------------------------------
+
+enum FeedbackRequestStatus {
+  PENDING
+  RESPONDED
+  WITHDRAWN
+}
+
+model FeedbackRequest {
+  id     String                @id @default(cuid())
+  status FeedbackRequestStatus @default(PENDING)
+
+  requesterId String
+  requester   User   @relation("FeedbackRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  mentorId String
+  mentor   User   @relation("FeedbackMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+
+  topic       String // short subject line
+  message     String // requester's ask (markdown)
+  response    String? // mentor's single written reply
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([mentorId, status])
+  @@index([requesterId])
 }
 
 // ----------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Calendar, Flame, ListChecks, Trophy } from "lucide-react";
+import { Calendar, Flame, ListChecks, Trophy, GraduationCap } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getPublicProfile } from "@/lib/public-profile";
 import { ActivityHeatmap } from "@/components/activity-heatmap";
@@ -8,6 +8,8 @@ import { AlgorithmRadarChart } from "@/components/algorithm-radar-chart";
 import { AnimatedNumber } from "@/components/animated-number";
 import { LogoMark } from "@/components/icons/logo-mark";
 import { ShareProfileButton } from "@/components/share-profile-button";
+import { MarkdownContent } from "@/components/markdown-content";
+import { RequestFeedbackDialog } from "@/components/request-feedback-dialog";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -81,6 +83,25 @@ export default async function PublicProfilePage({
           </div>
           <ShareProfileButton />
         </div>
+
+        {/* Mentor */}
+        {user.isMentor && (
+          <Card className="flex flex-col gap-3 p-5 duration-500 animate-in fade-in slide-in-from-bottom-2 fill-mode-both">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <GraduationCap className="size-4" />
+                <span className="label-mono">
+                  Mentor · {user.mentorTitle} @ {user.mentorCompany}
+                  {user.mentorYears ? ` · ${user.mentorYears}y experience` : ""}
+                </span>
+              </div>
+              {session?.user && session.user.id !== user.id && (
+                <RequestFeedbackDialog mentorId={user.id} mentorName={displayName} />
+              )}
+            </div>
+            {user.mentorBio && <MarkdownContent content={user.mentorBio} size="sm" />}
+          </Card>
+        )}
 
         {/* Stats row */}
         <div className="grid gap-3 sm:grid-cols-3">

@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Eye, Pencil, Tag, X, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Eye, Pencil, X, Loader2, HelpCircle, PencilLine } from "lucide-react";
 import { createPost } from "../actions";
 import { buttonVariants } from "@/components/ui/button";
+import { MarkdownContent } from "@/components/markdown-content";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
-function SubmitButton() {
+function SubmitButton({ isQuestion }: { isQuestion: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -23,14 +23,26 @@ function SubmitButton() {
           <Loader2 className="size-4 animate-spin" />
           Publishing...
         </>
+      ) : isQuestion ? (
+        "Post Question"
       ) : (
-        "Publish Post"
+        "Publish Article"
       )}
     </button>
   );
 }
 
 export default function NewPostPage() {
+  return (
+    <Suspense>
+      <NewPostForm />
+    </Suspense>
+  );
+}
+
+function NewPostForm() {
+  const searchParams = useSearchParams();
+  const isQuestion = searchParams.get("type") === "QUESTION";
   const [tab, setTab] = useState<"write" | "preview">("write");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -55,7 +67,10 @@ export default function NewPostPage() {
               Community
             </Link>
             <span className="text-muted-foreground">/</span>
-            <span className="text-sm font-medium">New Post</span>
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              {isQuestion ? <HelpCircle className="size-3.5" /> : <PencilLine className="size-3.5" />}
+              {isQuestion ? "New Question" : "New Article"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center rounded-lg border border-border p-0.5 gap-0.5">
@@ -108,9 +123,10 @@ export default function NewPostPage() {
                 name="content"
                 value={content}
               />
+              <input type="hidden" name="type" value={isQuestion ? "QUESTION" : "BLOG"} />
 
               <textarea
-                placeholder="New post title here..."
+                placeholder={isQuestion ? "What's your question?" : "New post title here..."}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full resize-none bg-transparent text-3xl sm:text-4xl font-heading font-bold tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
@@ -161,23 +177,21 @@ export default function NewPostPage() {
             <div className="px-8 py-6 min-h-[460px]">
               {tab === "write" ? (
                 <textarea
-                  placeholder={`Write your post content here in Markdown...\n\n## Example heading\n\nYour content here. You can use **bold**, _italic_, and \`code\` formatting.\n\n\`\`\`python\ndef two_sum(nums, target):\n    seen = {}\n    for i, n in enumerate(nums):\n        if target - n in seen:\n            return [seen[target - n], i]\n        seen[n] = i\n\`\`\``}
+                  placeholder={
+                    isQuestion
+                      ? "Describe what you're stuck on or want to ask...\n\nInclude what you've tried, the problem link, and any error messages or edge cases."
+                      : `Write your post content here in Markdown...\n\n## Example heading\n\nYour content here. You can use **bold**, _italic_, and \`code\` formatting.\n\n\`\`\`python\ndef two_sum(nums, target):\n    seen = {}\n    for i, n in enumerate(nums):\n        if target - n in seen:\n            return [seen[target - n], i]\n        seen[n] = i\n\`\`\``
+                  }
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   className="w-full h-full min-h-[420px] resize-none bg-transparent font-mono text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none leading-relaxed"
                 />
+              ) : content ? (
+                <MarkdownContent content={content} />
               ) : (
-                <div className="prose prose-invert max-w-none prose-headings:font-heading prose-pre:bg-black/50 prose-pre:border prose-pre:border-border prose-a:text-primary prose-code:text-primary prose-code:bg-accent prose-code:rounded prose-code:px-1">
-                  {content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {content}
-                    </ReactMarkdown>
-                  ) : (
-                    <p className="text-muted-foreground/50 italic">
-                      Nothing to preview yet. Switch to Write and add some content.
-                    </p>
-                  )}
-                </div>
+                <p className="text-muted-foreground/50 italic">
+                  Nothing to preview yet. Switch to Write and add some content.
+                </p>
               )}
             </div>
           </div>
@@ -191,7 +205,7 @@ export default function NewPostPage() {
               <Link href="/community" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Discard
               </Link>
-              <SubmitButton />
+              <SubmitButton isQuestion={isQuestion} />
             </div>
           </div>
         </form>

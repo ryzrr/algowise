@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { Link2, Sparkles } from "lucide-react";
+import { Link2, Sparkles, GraduationCap } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/card";
 import { UsernameForm } from "@/components/username-form";
+import { MentorProfileForm } from "@/components/mentor-profile-form";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -11,7 +12,15 @@ export default async function SettingsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { username: true, name: true },
+    select: {
+      username: true,
+      name: true,
+      isMentor: true,
+      mentorTitle: true,
+      mentorCompany: true,
+      mentorBio: true,
+      mentorYears: true,
+    },
   });
 
   return (
@@ -39,6 +48,22 @@ export default async function SettingsPage() {
           <span className="label-mono">Public profile</span>
         </div>
         <UsernameForm initialUsername={user?.username ?? null} />
+      </Card>
+
+      <Card className="gap-4 p-6">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <GraduationCap className="size-4" />
+          <span className="label-mono">Mentor profile</span>
+        </div>
+        <MentorProfileForm
+          initial={{
+            isMentor: user?.isMentor ?? false,
+            mentorTitle: user?.mentorTitle ?? null,
+            mentorCompany: user?.mentorCompany ?? null,
+            mentorBio: user?.mentorBio ?? null,
+            mentorYears: user?.mentorYears ?? null,
+          }}
+        />
       </Card>
     </div>
   );
