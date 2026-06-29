@@ -1,16 +1,14 @@
 import { notFound } from "next/navigation";
-import { formatDistanceToNow, format } from "date-fns";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { MessageSquare, ArrowLeft, Eye, Calendar, Clock } from "lucide-react";
+import { format } from "date-fns";
+import { MessageSquare, ArrowLeft, Eye, Calendar, Clock, HelpCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { buttonVariants } from "@/components/ui/button";
-import { createComment, markPostViewed } from "../actions";
+import { markPostViewed } from "../actions";
 import { LikeButton } from "../like-button";
-import { cn } from "@/lib/utils";
+import { MarkdownContent } from "@/components/markdown-content";
+import { CommentThread } from "@/components/comment-thread";
 
 function readingTime(text: string) {
   const words = text.trim().split(/\s+/).length;
@@ -30,7 +28,14 @@ export default async function PostViewerPage({
     include: {
       author: { select: { name: true, image: true, id: true } },
       comments: {
-        include: { author: { select: { name: true, image: true } } },
+        where: { parentId: null },
+        include: {
+          author: { select: { id: true, name: true, image: true } },
+          replies: {
+            include: { author: { select: { id: true, name: true, image: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+        },
         orderBy: { createdAt: "asc" },
       },
       _count: { select: { likes: true } },
@@ -62,6 +67,9 @@ export default async function PostViewerPage({
     : false;
 
   const mins = readingTime(post.content);
+  const isQuestion = post.type === "QUESTION";
+  const isAnswered = isQuestion && post.acceptedCommentId !== null;
+  const totalComments = post.comments.reduce((acc, c) => acc + 1 + c.replies.length, 0);
 
   return (
     <div className="min-h-full bg-background">
@@ -84,7 +92,7 @@ export default async function PostViewerPage({
           <LikeButton postId={post.id} liked={isLiked} count={post._count.likes} />
           <div className="flex flex-col items-center gap-1 text-muted-foreground">
             <MessageSquare className="size-5" />
-            <span className="text-sm">{post.comments.length}</span>
+            <span className="text-sm">{totalComments}</span>
           </div>
         </aside>
 
@@ -93,19 +101,27 @@ export default async function PostViewerPage({
           <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
             {/* Article header */}
             <div className="px-8 pt-10 pb-8 border-b border-border">
-              {/* Tags */}
-              {post.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {post.tags.map(({ tag }) => (
-                    <span
-                      key={tag.id}
-                      className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent text-muted-foreground"
-                    >
-                      #{tag.slug}
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                {isQuestion && (
+                  <span
+                    className={
+                      "flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium " +
+                      (isAnswered ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400")
+                    }
+                  >
+                    {isAnswered ? <CheckCircle2 className="size-3.5" /> : <HelpCircle className="size-3.5" />}
+                    {isAnswered ? "Answered" : "Question"}
+                  </span>
+                )}
+                {post.tags.map(({ tag }) => (
+                  <span
+                    key={tag.id}
+                    className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent text-muted-foreground"
+                  >
+                    #{tag.slug}
+                  </span>
+                ))}
+              </div>
 
               <h1 className="text-3xl sm:text-4xl font-heading font-bold tracking-tight text-foreground leading-tight">
                 {post.title}
@@ -131,10 +147,12 @@ export default async function PostViewerPage({
                         <Calendar className="size-3" />
                         {format(post.createdAt, "MMM d, yyyy")}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="size-3" />
-                        {mins} min read
-                      </span>
+                      {!isQuestion && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3" />
+                          {mins} min read
+                        </span>
+                      )}
                       <span className="flex items-center gap-1">
                         <Eye className="size-3" />
                         {post.views} views
@@ -147,11 +165,7 @@ export default async function PostViewerPage({
 
             {/* Article body */}
             <div className="px-8 py-10">
-              <div className="prose prose-invert max-w-none prose-headings:font-heading prose-headings:font-bold prose-pre:bg-black/60 prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-a:text-primary prose-code:text-primary prose-code:bg-primary/10 prose-code:rounded prose-code:px-1.5 prose-code:py-0.5 prose-code:font-mono prose-blockquote:border-primary prose-blockquote:bg-accent/30 prose-blockquote:rounded-r-lg prose-img:rounded-xl prose-img:border prose-img:border-border">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {post.content}
-                </ReactMarkdown>
-              </div>
+              <MarkdownContent content={post.content} />
             </div>
 
             {/* Article footer - like/share on mobile */}
@@ -177,68 +191,20 @@ export default async function PostViewerPage({
             </div>
           </div>
 
-          {/* Comments section */}
+          {/* Comments / Answers section */}
           <div id="comments" className="mt-8">
-            <h3 className="text-xl font-heading font-semibold flex items-center gap-2 mb-6">
-              <MessageSquare className="size-5" />
-              {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
-            </h3>
-
-            {/* Comment form */}
-            {session?.user ? (
-              <form action={createComment.bind(null, post.id)} className="flex gap-4 mb-8">
-                {session.user.image ? (
-                  <img src={session.user.image} alt="" className="size-10 rounded-full shrink-0 ring-2 ring-border" />
-                ) : (
-                  <div className="size-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 shrink-0 ring-2 ring-border flex items-center justify-center font-bold text-primary">
-                    {(session.user.name || "U").charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="flex flex-col gap-2 flex-1">
-                  <textarea
-                    name="content"
-                    placeholder="Share your thoughts..."
-                    className="w-full resize-y min-h-[100px] rounded-xl border border-border bg-card p-4 text-sm shadow-sm placeholder:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-all"
-                    required
-                  />
-                  <div className="flex justify-end">
-                    <button type="submit" className={cn(buttonVariants({ size: "sm" }))}>
-                      Post Comment
-                    </button>
-                  </div>
-                </div>
-              </form>
-            ) : (
-              <div className="mb-8 p-4 rounded-xl border border-border bg-accent/30 text-sm text-muted-foreground text-center">
-                <Link href="/login" className="text-primary hover:underline">Sign in</Link> to join the discussion.
-              </div>
-            )}
-
-            {/* Comments list */}
-            <div className="flex flex-col gap-5">
-              {post.comments.map((comment) => (
-                <div key={comment.id} className="flex gap-4">
-                  {comment.author.image ? (
-                    <img src={comment.author.image} alt="" className="size-10 rounded-full shrink-0 ring-2 ring-border" />
-                  ) : (
-                    <div className="size-10 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 shrink-0 ring-2 ring-border flex items-center justify-center font-bold text-primary">
-                      {(comment.author.name || "A").charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="flex-1 rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold text-sm">{comment.author.name || "Anonymous"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
-                      </span>
-                    </div>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-                      {comment.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <CommentThread
+              postId={post.id}
+              threads={post.comments}
+              currentUser={
+                session?.user?.id
+                  ? { id: session.user.id, name: session.user.name ?? null, image: session.user.image ?? null }
+                  : null
+              }
+              isQuestion={isQuestion}
+              acceptedCommentId={post.acceptedCommentId}
+              canAccept={session?.user?.id === post.author.id}
+            />
           </div>
         </article>
 

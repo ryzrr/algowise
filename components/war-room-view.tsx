@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DifficultyBadge } from "@/components/difficulty-badge";
+import { CodeRunner } from "@/components/code-runner";
 import { cn, avatarGradient } from "@/lib/utils";
 import { markSolved, getRoomStateAction } from "@/actions/war-room-actions";
 import type { PlayerStatus, RoomState } from "@/lib/war-room";
@@ -268,6 +269,8 @@ export function WarRoomView({
           fallbackLabel="Waiting for opponent…"
         />
       </div>
+
+      {isParticipant && room.startTime && <CodeRunner roomCode={code} />}
 
       {isFinished ? (
         <Card className={cn(won ? "ring-2 ring-emerald-500/40" : "ring-1 ring-border")}>

@@ -45,6 +45,7 @@ next-env.d.ts
 
 /lib/generated/prisma
 checklist.md
+.ground.md
 
 # sqlite dev database
 prisma/dev.db
