@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Calendar,
@@ -43,7 +44,8 @@ export default async function HomePage({
   const days = range === "7" ? 7 : range === "90" ? 90 : 30;
 
   const session = await auth();
-  const userId = session!.user!.id!;
+  if (!session?.user?.id) redirect("/sign-in");
+  const userId = session.user.id;
 
   const [stats, continueCard, trend, topCompanies, recent, revisionList, weeklyDelta, algoAnalytics, dailyChallenge] =
     await Promise.all([
