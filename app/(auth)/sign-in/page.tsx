@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { signInWithGitHub } from "@/actions/auth-actions";
+import { signInWithGitHub, signInWithGoogle } from "@/actions/auth-actions";
 import { Button } from "@/components/ui/button";
 import { Flame, Trophy, CalendarDays } from "lucide-react";
 import { GitHubIcon } from "@/components/icons/github-icon";
+import { GoogleIcon } from "@/components/icons/google-icon";
 import { LogoMark } from "@/components/icons/logo-mark";
 import { FloatingSymbols } from "@/components/floating-symbols";
 
@@ -32,12 +33,25 @@ export default async function SignInPage() {
           </p>
         </div>
 
-        <form action={signInWithGitHub} className="w-full delay-200 duration-700 animate-in fade-in slide-in-from-bottom-3 fill-mode-both">
-          <Button type="submit" size="lg" className="w-full gap-2 transition-transform active:scale-[0.98]">
-            <GitHubIcon className="size-4" />
-            Continue with GitHub
-          </Button>
-        </form>
+        <div className="flex w-full flex-col gap-2.5 delay-200 duration-700 animate-in fade-in slide-in-from-bottom-3 fill-mode-both">
+          <form action={signInWithGitHub}>
+            <Button type="submit" size="lg" className="w-full gap-2 transition-transform active:scale-[0.98]">
+              <GitHubIcon className="size-4" />
+              Continue with GitHub
+            </Button>
+          </form>
+          <form action={signInWithGoogle}>
+            <Button
+              type="submit"
+              size="lg"
+              variant="outline"
+              className="w-full gap-2 transition-transform active:scale-[0.98]"
+            >
+              <GoogleIcon className="size-4" />
+              Continue with Google
+            </Button>
+          </form>
+        </div>
 
         <div className="flex w-full flex-col divide-y divide-border overflow-hidden rounded-lg border border-border bg-card/40 text-left delay-300 duration-700 animate-in fade-in slide-in-from-bottom-3 fill-mode-both">
           {[
